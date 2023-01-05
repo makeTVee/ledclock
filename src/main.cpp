@@ -103,8 +103,7 @@ void setup() {
   SPIFFS.begin();
   listDir(SPIFFS, "/", 1);
 
-  if (Portal.begin())
-  {
+    if (Portal.begin()) {
     Serial.println("WiFi connected: " + WiFi.localIP().toString());
     }
 
@@ -163,16 +162,14 @@ void setup() {
 
   setupWeb();
 }
-
-void loop()
-{
+int splitT;
+void loop() {
   // Call the current pattern function once, updating the 'leds' array
   Portal.handleClient();
   #ifdef OTA
     ArduinoOTA.handle(); 
   #endif
 
-  int splitT;
   switch (sys_state)
   {
     case 0:
@@ -312,7 +309,6 @@ void loop()
   {
     touch_counter=0;
   }
-
   FastLED.delay(50); 
   //Serial.println(touch_counter);
 
@@ -341,6 +337,8 @@ void loop()
     rgb_pwm();   
 
   } // slowly cycle the "base color" through the rainbow
+
+
 }
 
 void set_time(uint8_t hour, uint8_t minute, uint8_t second)
@@ -354,6 +352,7 @@ void set_time(uint8_t hour, uint8_t minute, uint8_t second)
   leds[second] += CRGB::Green;
   FastLED.show();  
 }
+
 
 void rgb_pwm()
 {
@@ -396,6 +395,7 @@ void rgb_pwm()
       break;
     default:
       break;
+
   }
 }
 
