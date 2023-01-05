@@ -15,6 +15,9 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 
+#include <FS.h>
+#include <SPIFFS.h>
+
 WebServer Server;         
 AutoConnect      Portal(Server);
 
@@ -59,8 +62,16 @@ uint16_t timer_cnt=1;
 
 
 WiFiUDP ntpUDP;
-//NTPClient timeClient(ntpUDP);
-NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 7200, 60000);
+
+// offset time in seconds to adjust for your timezone, for example:
+// GMT +1 = 3600
+// GMT +8 = 28800
+// GMT -1 = -3600
+// GMT 0 = 0
+// GMT -6 = -21600
+int timeOffset = -21600;
+
+NTPClient timeClient(ntpUDP, "pool.ntp.org", timeOffset, 60000);
 String formattedDate;
 String dayStamp;
 String timeStamp;
@@ -73,11 +84,6 @@ void IRAM_ATTR T0Activated() { touched = true; }
 
 FASTLED_USING_NAMESPACE
 
-void rootPage() {
-  char content[] = "Hello WS2812B clock";
-  Server.send(200, "text/plain", content);
-}
-
 //Function declaration
 void rainbow();
 void addGlitter(fract8 chanceOfGlitter);
@@ -88,10 +94,17 @@ void fadeall() { for(int i = 0; i < NUM_LEDS; i++) { leds[i].nscale8(250); } }
 void plot_timer(uint16_t cnt);
 void confetti() ;
 
+void listDir(fs::FS &fs, const char *dirname, uint8_t levels);
+void setupWeb();
+
 void setup() {
   Serial.begin(115200);
   //delay(1000); // give me time to bring up serial monitor
-  
+
+
+  SPIFFS.begin();
+  listDir(SPIFFS, "/", 1);
+
     if (Portal.begin()) {
     Serial.println("WiFi connected: " + WiFi.localIP().toString());
     }
@@ -147,22 +160,10 @@ void setup() {
 
   Serial.println("Booting");
 
-  /*WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
-    Serial.println("Connection Failed! Rebooting...");
-    delay(5000);
-    ESP.restart();
-  }*/
-
   timeClient.begin();
-  // Set offset time in seconds to adjust for your timezone, for example:
-  // GMT +1 = 3600
-  // GMT +8 = 28800
-  // GMT -1 = -3600
-  // GMT 0 = 0
-  timeClient.setTimeOffset(-21600);
-  
+  timeClient.setTimeOffset(timeOffset);
+
+  setupWeb();
 }
 int splitT;
 void loop() {
@@ -283,7 +284,7 @@ void loop() {
       break;
   }
 
-  if (touch_long_press)
+  if (touch_long_press) // next state
   {
     sys_state++;
     transition = true;
@@ -339,7 +340,7 @@ void loop() {
     rgb_pwm();   
 
   } // slowly cycle the "base color" through the rainbow
- 
+
 
 }
 
@@ -443,4 +444,87 @@ void rainbowWithGlitter()
   // built-in FastLED rainbow, plus some random sparkly glitter
   rainbow();
   addGlitter(80);
+}
+
+void listDir(fs::FS &fs, const char *dirname, uint8_t levels)
+{
+  Serial.printf("Listing directory: %s\n", dirname);
+
+  File root = fs.open(dirname);
+  if (!root)
+  {
+    Serial.println("Failed to open directory");
+    return;
+  }
+  if (!root.isDirectory())
+  {
+    Serial.println("Not a directory");
+    return;
+  }
+
+  File file = root.openNextFile();
+  while (file)
+  {
+    if (file.isDirectory())
+    {
+      Serial.print("  DIR : ");
+      Serial.println(file.name());
+      if (levels)
+      {
+        listDir(fs, file.name(), levels - 1);
+      }
+    }
+    else
+    {
+      Serial.print("  FILE: ");
+      Serial.print(file.name());
+      Serial.print("  SIZE: ");
+      Serial.println(file.size());
+    }
+    file = root.openNextFile();
+  }
+}
+
+String getData()
+{
+  String json = "{";
+
+  json += "\"mode\":" + String(sys_state) + "";
+  json += ",\"timeOffset\":" + String(timeOffset) + "";
+
+  json += "}";
+
+  return json;
+}
+
+void setupWeb()
+{
+  Server.enableCORS(true);
+  Server.on("/data", HTTP_GET, []()
+            { Server.send(200, "text/json", getData()); });
+  Server.on("/set", HTTP_POST, []()
+            {
+    String name = Server.arg("name");
+    String value = Server.arg("value");
+    
+    if (name == "mode")
+    {
+      sys_state = value.toInt();
+      sys_state = max(sys_state, (uint8_t)0);
+      sys_state = min(sys_state, (uint8_t)3);
+      transition = true;
+      touch_long_press = false;
+      Server.send(200);
+    } else if (name == "timeOffset")
+    {
+      timeClient.setTimeOffset(value.toInt());
+      Server.send(200);
+    }
+    else
+    {
+      Server.send(404, "text/plain", "Unknown field");
+    } });
+
+  Server.serveStatic("/", SPIFFS, "/index.htm");
+  Server.serveStatic("/app.js", SPIFFS, "/app.js");
 }
