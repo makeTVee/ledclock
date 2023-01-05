@@ -4,7 +4,7 @@ var urlBase = "";
 
 if (address.includes("localhost") || address.includes("127.0.0.1")) {
   // used when hosting the site somewhere other than the ESP (handy for testing without waiting forever to upload to SPIFFS)
-  address = "192.168.86.55";
+  address = "192.168.188.93";
   urlBase = `http://${address}`;
 }
 
