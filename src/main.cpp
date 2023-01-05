@@ -2,7 +2,7 @@
 #include <FastLED.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>
-#include <WebServer.h>
+#include <WebServer.h>   
 #include <AutoConnect.h>
 
 
@@ -18,8 +18,8 @@
 #include <FS.h>
 #include <SPIFFS.h>
 
-WebServer Server;
-AutoConnect Portal(Server);
+WebServer Server;         
+AutoConnect      Portal(Server);
 
 #define NP_PIN    12  //LED ring
 #define RED_PIN   26  //Red LED for PWM
@@ -59,6 +59,7 @@ bool timer_runs=false;    //timer mode status
 bool transition=false;    //transition for state change
 long loop_counter=0;
 uint16_t timer_cnt=1;
+
 
 WiFiUDP ntpUDP;
 
@@ -100,6 +101,7 @@ void setup() {
   Serial.begin(115200);
   //delay(1000); // give me time to bring up serial monitor
 
+
   SPIFFS.begin();
   listDir(SPIFFS, "/", 1);
 
@@ -134,6 +136,7 @@ void setup() {
 
     ArduinoOTA.begin();
   #endif
+
 
   pinMode(RED_PIN, OUTPUT);
   pinMode(GREEN_PIN, OUTPUT);
