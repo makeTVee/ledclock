@@ -15,5 +15,5 @@ python3 get-platformio.py
 pio platform install "espressif32"
 
 # Compile project
-pio run --environment ${FIB_PRODUCT}
-pio run --target buildfs --environment ${FIB_PRODUCT}
+pio run
+pio run --target buildfs
