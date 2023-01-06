@@ -12,7 +12,7 @@ curl -fsSL https://raw.githubusercontent.com/platformio/platformio-core-installe
 python3 get-platformio.py
 
 # Install esp32 platform
-pio platform install "espressif32"
+pio pkg install -p "espressif32"
 
 # Compile project
 pio run
