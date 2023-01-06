@@ -38,19 +38,11 @@ CRGB leds[NUM_LEDS];
 
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
 
-// setting PWM properties
-const int freq = 5000;
-const int resolution = 8;
-
 bool off = false;
 uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
-uint8_t gHue = 160;                // rotating "base color" used by many of the patterns
-uint8_t gcnt = 0;
-uint8_t led_state = 0;     // status of the 3 LEDs in the mid (7 permutations out of 3 LEDs: R,G,B,RG,RB,GB,RGB)
-uint8_t duty_cycle = 0;    // duty cycle for PWM
-uint8_t led_dir = 0;       // fading direction for PWM
-uint8_t touch_counter = 0; // counter for touch button (long/short press detection)
-uint8_t sys_state = 0;     // state machine variable for different modes (LED only, clock, timer ...)
+uint8_t gHue = 0;                  // rotating "base color" used by many of the patterns
+uint8_t touch_counter = 0;         // counter for touch button (long/short press detection)
+uint8_t sys_state = 5;             // state machine variable for different modes (LED only, clock, timer ...)
 uint8_t hue = 0;
 bool touch_long_press = false;
 bool touch_short_press = false;
@@ -84,14 +76,17 @@ FASTLED_USING_NAMESPACE
 
 // function declarations
 void addGlitter(fract8 chanceOfGlitter);
-void fadeall();
 void listDir(fs::FS &fs, const char *dirname, uint8_t levels);
 void plot_timer(uint16_t cnt);
-void rgb_pwm();
+void updateAnalogLeds();
 void set_time(uint8_t hour, uint8_t minute, uint8_t second);
 void setupWeb();
 
 // pattern function declarations
+void drawAnimation();
+void drawClock();
+void drawSolidColor();
+void drawTimer();
 void confetti();
 void rainbow();
 void rainbowWithGlitter();
@@ -141,19 +136,23 @@ void setup()
   pinMode(BLUE_PIN, OUTPUT);
   pinMode(BUZZ_PIN, OUTPUT);
 
+  // setting PWM properties
+  const int freq = 5000;
+  const int resolution = 8;
+
   ledcSetup(0, freq, resolution);
   ledcSetup(1, freq, resolution);
   ledcSetup(2, freq, resolution);
   ledcAttachPin(RED_PIN, 0);
   ledcAttachPin(GREEN_PIN, 1);
   ledcAttachPin(BLUE_PIN, 2);
-  ledcWrite(0, 255);
-  ledcWrite(1, 255);
-  ledcWrite(2, 255);
+
+  // turn off the analog LEDs
+  updateAnalogLeds(CRGB::Black);
 
   touchAttachInterrupt(TOUCH_PIN, T0Activated, touch_threshold);
 
-  FastLED.addLeds<LED_TYPE, NP_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+  FastLED.addLeds<LED_TYPE, NP_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalSMD5050);
   FastLED.setBrightness(BRIGHTNESS);
 
   Serial.println("Booting");
@@ -163,123 +162,48 @@ void setup()
 
   setupWeb();
 }
-int splitT;
+
 void loop()
 {
-  // Call the current pattern function once, updating the 'leds' array
   Portal.handleClient();
 #ifdef OTA
   ArduinoOTA.handle();
 #endif
 
+  CRGB analogColor = CHSV(gHue, 255, 255);
+
   switch (sys_state)
   {
-  case 0:
+  case 0: // off
     FastLED.clear();
     FastLED.show();
+    analogColor = CRGB::Black;
     break;
-  case 1:
-    if (transition)
-    {
 
-      // First slide the led in one direction
-      for (int i = 0; i < NUM_LEDS; i++)
-      {
-        // Set the i'th led to red
-        hue += 4;
-        leds[i] = CHSV(hue, 255, 255);
-        // Show the leds
-        FastLED.show();
-        // now that we've shown the leds, reset the i'th led to black
-        // leds[i] = CRGB::Black;
-        fadeall();
-        // Wait a little bit before we loop around and do it again
-        delay(25);
-      }
-      transition = false;
-    }
-    timeClient.update();
-    formattedDate = timeClient.getFormattedTime();
-    splitT = formattedDate.indexOf("T");
-    timeStamp = formattedDate.substring(splitT + 1, formattedDate.length());
-    set_time(timeStamp.substring(0, 2).toInt(), timeStamp.substring(3, 5).toInt(), timeStamp.substring(6, 8).toInt());
+  case 1: // clock
+    drawClock();
     break;
-  case 2:
-    if (transition)
-    {
-      loop_counter = 0;
-      timer_runs = false;
-      timer_cnt = 1;
-      for (int i = NUM_LEDS - 1; i >= 0; i--)
-      {
-        hue += 4;
-        leds[i] = CHSV(hue, 255, 255);
-        FastLED.show();
-        fadeall();
-        delay(25);
-      }
-      transition = false;
-      FastLED.clear();
-      FastLED.show();
-    }
-    loop_counter++;
-    if (touch_short_press && (!timer_runs))
-    {
-      timer_cnt = (timer_cnt + 1) % 60;
-      plot_timer((timer_cnt - 1) * 60);
-      touch_short_press = false;
-      loop_counter = 0;
-    }
-    if (loop_counter >= 100)
-    {
-      timer_runs = true;
-      timer_cnt = (timer_cnt - 1) * 60;
-      loop_counter = 0;
-    }
-    if (timer_runs)
-    {
-      plot_timer(timer_cnt);
-      if (loop_counter == 20)
-      {
-        timer_cnt--;
-        loop_counter = 0;
-        if (timer_cnt == 0)
-        {
-          for (int r = 0; r < 5; r++)
-          {
-            for (int b = 0; b < 4; b++)
-            {
-              digitalWrite(BUZZ_PIN, HIGH);
-              delay(100);
-              digitalWrite(BUZZ_PIN, LOW);
-              delay(100);
-            }
-            delay(500);
-            sys_state = 0;
-          }
-          timer_runs = false;
-        }
-      }
-      // Serial.println(timer_cnt);
-    }
-    break;
-  case 3:
-    if (transition)
-    {
-      loop_counter = 0;
-      transition = false;
-    }
-    leds[loop_counter] = CHSV(hue++, 255, 255);
-    // Show the leds
-    FastLED.show();
-    // now that we've shown the leds, reset the i'th led to black
-    // leds[i] = CRGB::Black;
-    fadeall();
-    fadeall();
-    // Wait a little bit before we loop around and do it again
 
-    loop_counter = (loop_counter + 1) % 60;
+  case 2: // timer
+    drawTimer();
     break;
+
+  case 3: // animation
+    drawAnimation();
+    // have the analog LEDs match the color of the first LED
+    analogColor = leds[0];
+    break;
+
+  case 4: // solid color, same as the analog LEDs
+    drawSolidColor();
+    break;
+
+  case 5: // pride
+    pride();
+    // have the analog LEDs match the color of the first LED
+    analogColor = leds[0];
+    break;
+
   default:
     break;
   }
@@ -288,7 +212,7 @@ void loop()
   {
     sys_state++;
     transition = true;
-    if (sys_state == 4)
+    if (sys_state == 6)
       sys_state = 0;
     touch_long_press = false;
   }
@@ -313,35 +237,18 @@ void loop()
   {
     touch_counter = 0;
   }
-  FastLED.delay(50);
+
   // Serial.println(touch_counter);
 
-  // do some periodic updates
-  EVERY_N_MILLISECONDS(5)
-  {
-    gHue++;
-    if (led_dir == 0)
-    {
-      duty_cycle += 5;
-      if (duty_cycle == 250)
-      {
-        led_dir = 1;
-      }
-    }
-    else
-    {
-      duty_cycle -= 5;
-      if (duty_cycle == 0)
-      {
-        led_dir = 0;
-        led_state++;
-        if (led_state == 7)
-          led_state = 0;
-      }
-    }
-    rgb_pwm();
+  // update the LED ring
+  FastLED.delay(50);
 
-  } // slowly cycle the "base color" through the rainbow
+  // do some periodic updates
+  EVERY_N_MILLISECONDS(30)
+  {
+    gHue++; // slowly cycle the "base color" through the rainbow
+    updateAnalogLeds(analogColor);
+  }
 }
 
 void set_time(uint8_t hour, uint8_t minute, uint8_t second)
@@ -356,48 +263,11 @@ void set_time(uint8_t hour, uint8_t minute, uint8_t second)
   FastLED.show();
 }
 
-void rgb_pwm()
+void updateAnalogLeds(CRGB rgb)
 {
-  switch (led_state)
-  {
-  case 0: // red
-    ledcWrite(0, 255 - duty_cycle);
-    ledcWrite(1, 255);
-    ledcWrite(2, 255);
-    break;
-  case 1: // green
-    ledcWrite(0, 255);
-    ledcWrite(1, 255 - duty_cycle);
-    ledcWrite(2, 255);
-    break;
-  case 2: // blue
-    ledcWrite(0, 255);
-    ledcWrite(1, 255);
-    ledcWrite(2, 255 - duty_cycle);
-    break;
-  case 3: // red & green
-    ledcWrite(0, 255 - duty_cycle);
-    ledcWrite(1, 255 - duty_cycle);
-    ledcWrite(2, 255);
-    break;
-  case 4: // green & blue
-    ledcWrite(0, 255);
-    ledcWrite(1, 255 - duty_cycle);
-    ledcWrite(2, 255 - duty_cycle);
-    break;
-  case 5: // red & blue
-    ledcWrite(0, 255 - duty_cycle);
-    ledcWrite(1, 255);
-    ledcWrite(2, 255 - duty_cycle);
-    break;
-  case 6: // red, green & blue
-    ledcWrite(0, 255 - duty_cycle);
-    ledcWrite(1, 255 - duty_cycle);
-    ledcWrite(2, 255 - duty_cycle);
-    break;
-  default:
-    break;
-  }
+  ledcWrite(0, 255 - rgb.r);
+  ledcWrite(1, 255 - rgb.g);
+  ledcWrite(2, 255 - rgb.b);
 }
 
 void plot_timer(uint16_t cnt)
@@ -416,11 +286,122 @@ void plot_timer(uint16_t cnt)
   FastLED.show();
 }
 
-void fadeall()
+void drawAnimation()
 {
-  for (int i = 0; i < NUM_LEDS; i++)
+  if (transition)
   {
-    leds[i].nscale8(250);
+    loop_counter = 0;
+    transition = false;
+  }
+  leds[loop_counter] = CHSV(hue++, 255, 255);
+
+  // Show the leds
+  FastLED.show();
+
+  fadeToBlackBy(leds, NUM_LEDS, 13);
+
+  // Wait a little bit before we loop around and do it again
+  loop_counter = (loop_counter + 1) % 60;
+}
+
+void drawClock()
+{
+  if (transition)
+  {
+    // First slide the led in one direction
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+      // Set the i'th led to hue
+      hue += 4;
+      leds[i] = CHSV(hue, 255, 255);
+
+      // Show the leds
+      FastLED.show();
+
+      fadeToBlackBy(leds, NUM_LEDS, 10);
+
+      // Wait a little bit before we loop around and do it again
+      delay(25);
+    }
+    transition = false;
+  }
+  timeClient.update();
+  formattedDate = timeClient.getFormattedTime();
+  int splitT = formattedDate.indexOf("T");
+  timeStamp = formattedDate.substring(splitT + 1, formattedDate.length());
+  set_time(timeStamp.substring(0, 2).toInt(), timeStamp.substring(3, 5).toInt(), timeStamp.substring(6, 8).toInt());
+}
+
+void drawSolidColor()
+{
+  if (transition)
+  {
+    loop_counter = 0;
+    transition = false;
+  }
+  fill_solid(leds, NUM_LEDS, CHSV(gHue, 255, 255));
+  FastLED.show();
+  loop_counter = (loop_counter + 1) % 60;
+}
+
+void drawTimer()
+{
+  if (transition)
+  {
+    loop_counter = 0;
+    timer_runs = false;
+    timer_cnt = 1;
+    for (int i = NUM_LEDS - 1; i >= 0; i--)
+    {
+      hue += 4;
+      leds[i] = CHSV(hue, 255, 255);
+      FastLED.show();
+      fadeToBlackBy(leds, NUM_LEDS, 10);
+      delay(25);
+    }
+    transition = false;
+    FastLED.clear();
+    FastLED.show();
+  }
+  loop_counter++;
+  if (touch_short_press && (!timer_runs))
+  {
+    timer_cnt = (timer_cnt + 1) % 60;
+    plot_timer((timer_cnt - 1) * 60);
+    touch_short_press = false;
+    loop_counter = 0;
+  }
+  if (loop_counter >= 100)
+  {
+    timer_runs = true;
+    timer_cnt = (timer_cnt - 1) * 60;
+    loop_counter = 0;
+  }
+  if (timer_runs)
+  {
+    plot_timer(timer_cnt);
+    if (loop_counter == 20)
+    {
+      timer_cnt--;
+      loop_counter = 0;
+      if (timer_cnt == 0)
+      {
+        for (int r = 0; r < 5; r++)
+        {
+          for (int b = 0; b < 4; b++)
+          {
+            digitalWrite(BUZZ_PIN, HIGH);
+            delay(100);
+            digitalWrite(BUZZ_PIN, LOW);
+            delay(100);
+          }
+          delay(500);
+          sys_state = 0;
+        }
+        timer_runs = false;
+      }
+    }
+    // Serial.println(timer_cnt);
   }
 }
 
@@ -443,6 +424,58 @@ void addGlitter(fract8 chanceOfGlitter)
   if (random8() < chanceOfGlitter)
   {
     leds[random16(NUM_LEDS)] += CRGB::White;
+  }
+}
+
+// Pride2015 by Mark Kriegsman: https://gist.github.com/kriegsman/964de772d64c502760e5
+// This function draws rainbows with an ever-changing,
+// widely-varying set of parameters.
+void pride()
+{
+  static uint16_t sPseudotime = 0;
+  static uint16_t sLastMillis = 0;
+  static uint16_t sHue16 = 0;
+
+  // uint8_t sat8 = beatsin88( 87, 220, 250);
+  uint8_t sat8 = beatsin88(43.5, 220, 250);
+  // uint8_t brightdepth = beatsin88( 341, 96, 224);
+  uint8_t brightdepth = beatsin88(171, 96, 224);
+  // uint16_t brightnessthetainc16 = beatsin88( 203, (25 * 256), (40 * 256));
+  uint16_t brightnessthetainc16 = beatsin88(102, (25 * 256), (40 * 256));
+  // uint8_t msmultiplier = beatsin88(147, 23, 60);
+  uint8_t msmultiplier = beatsin88(74, 23, 60);
+
+  uint16_t hue16 = sHue16; // gHue * 256;
+  // uint16_t hueinc16 = beatsin88(113, 1, 3000);
+  uint16_t hueinc16 = beatsin88(57, 1, 128);
+
+  uint16_t ms = millis();
+  uint16_t deltams = ms - sLastMillis;
+  sLastMillis = ms;
+  sPseudotime += deltams * msmultiplier;
+  // sHue16 += deltams * beatsin88( 400, 5, 9);
+  sHue16 += deltams * beatsin88(200, 5, 9);
+  uint16_t brightnesstheta16 = sPseudotime;
+
+  for (uint16_t i = 0; i < NUM_LEDS; i++)
+  {
+    hue16 += hueinc16;
+    uint8_t hue8 = hue16 / 256;
+
+    brightnesstheta16 += brightnessthetainc16;
+    uint16_t b16 = sin16(brightnesstheta16) + 32768;
+
+    uint16_t bri16 = (uint32_t)((uint32_t)b16 * (uint32_t)b16) / 65536;
+    uint8_t bri8 = (uint32_t)(((uint32_t)bri16) * brightdepth) / 65536;
+    bri8 += (255 - brightdepth);
+
+    CRGB newcolor = CHSV(hue8, sat8, bri8);
+
+    uint16_t pixelnumber = i;
+
+    pixelnumber = (NUM_LEDS - 1) - pixelnumber;
+
+    nblend(leds[pixelnumber], newcolor, 64);
   }
 }
 
