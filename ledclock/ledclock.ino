@@ -17,6 +17,10 @@
 #include <FS.h>
 #include <SPIFFS.h>
 
+#define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
+
+#include "palettes.h"
+
 WebServer Server;
 AutoConnect Portal(Server);
 
@@ -39,15 +43,14 @@ CRGB leds[NUM_LEDS];
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
 
 bool off = false;
-uint8_t gCurrentPatternNumber = 0; // Index number of which pattern is current
-uint8_t gHue = 0;                  // rotating "base color" used by many of the patterns
-uint8_t touch_counter = 0;         // counter for touch button (long/short press detection)
-uint8_t sys_state = 5;             // state machine variable for different modes (LED only, clock, timer ...)
-uint8_t hue = 0;
+uint8_t gHue = 0;          // rotating "base color" used by many of the patterns
+uint8_t touch_counter = 0; // counter for touch button (long/short press detection)
+uint8_t mode = 1;          // variable for different modes (off, clock, timer, pattern)
+uint8_t modeCount = 4;
+
 bool touch_long_press = false;
 bool touch_short_press = false;
 bool timer_runs = false; // timer mode status
-bool transition = false; // transition for state change
 long loop_counter = 0;
 uint16_t timer_cnt = 1;
 
@@ -72,25 +75,25 @@ void IRAM_ATTR T0Activated() { touched = true; }
 #define TOUCH_LONG_TIME 50
 #define TOUCH_SHORT_TIME 15
 
+uint8_t cyclePalette = 0;
+uint8_t paletteDuration = 10;
+uint8_t currentPaletteIndex = 0;
+unsigned long paletteTimeout = 0;
+
+uint8_t cyclePattern = 0;
+uint8_t patternDuration = 10;
+uint8_t currentPatternIndex = 0;
+unsigned long patternTimeout = 0;
+
+uint8_t speed = 30;
+CRGB analogColor = CRGB::Black;
+
+#include "patterns.h"
+
 FASTLED_USING_NAMESPACE
 
 // function declarations
-void addGlitter(fract8 chanceOfGlitter);
 void listDir(fs::FS &fs, const char *dirname, uint8_t levels);
-void plot_timer(uint16_t cnt);
-void updateAnalogLeds();
-void set_time(uint8_t hour, uint8_t minute, uint8_t second);
-void setupWeb();
-
-// pattern function declarations
-void drawAnimation();
-void drawClock();
-void drawSolidColor();
-void drawTimer();
-void confetti();
-void rainbow();
-void rainbowWithGlitter();
-void pride();
 
 void setup()
 {
@@ -170,13 +173,10 @@ void loop()
   ArduinoOTA.handle();
 #endif
 
-  CRGB analogColor = CHSV(gHue, 255, 255);
-
-  switch (sys_state)
+  switch (mode)
   {
   case 0: // off
     FastLED.clear();
-    FastLED.show();
     analogColor = CRGB::Black;
     break;
 
@@ -188,20 +188,9 @@ void loop()
     drawTimer();
     break;
 
-  case 3: // animation
-    drawAnimation();
-    // have the analog LEDs match the color of the first LED
-    analogColor = leds[0];
-    break;
-
-  case 4: // solid color, same as the analog LEDs
-    drawSolidColor();
-    break;
-
-  case 5: // pride
-    pride();
-    // have the analog LEDs match the color of the first LED
-    analogColor = leds[0];
+  case 3: // pattern
+    // call the current pattern function
+    patterns[currentPatternIndex]();
     break;
 
   default:
@@ -210,10 +199,9 @@ void loop()
 
   if (touch_long_press) // next state
   {
-    sys_state++;
-    transition = true;
-    if (sys_state == 6)
-      sys_state = 0;
+    mode++;
+    if (mode >= modeCount)
+      mode = 0;
     touch_long_press = false;
   }
 
@@ -243,11 +231,34 @@ void loop()
   // update the LED ring
   FastLED.delay(50);
 
+  updateAnalogLeds(analogColor);
+
   // do some periodic updates
   EVERY_N_MILLISECONDS(30)
   {
     gHue++; // slowly cycle the "base color" through the rainbow
-    updateAnalogLeds(analogColor);
+  }
+
+  EVERY_N_MILLISECONDS(40)
+  {
+    // slowly blend the current palette to the next
+    nblendPaletteTowardPalette(currentPalette, targetPalette, 8);
+    gHue++; // slowly cycle the "base color" through the rainbow
+  }
+
+  // change to a new palette
+  if (cyclePalette == 1 && (millis() > paletteTimeout))
+  {
+    currentPaletteIndex = (currentPaletteIndex + 1) % paletteCount;
+    targetPalette = palettes[currentPaletteIndex];
+    paletteTimeout = millis() + (paletteDuration * 1000);
+  }
+
+  // change to a new pattern
+  if (cyclePattern == 1 && (millis() > patternTimeout))
+  {
+    currentPatternIndex = (currentPatternIndex + 1) % patternCount;
+    patternTimeout = millis() + (patternDuration * 1000);
   }
 }
 
@@ -260,7 +271,6 @@ void set_time(uint8_t hour, uint8_t minute, uint8_t second)
   leds[minute] += CRGB::Red;
   leds[(minute - 1) % 60] += 0x00300000;
   leds[second] += CRGB::Green;
-  FastLED.show();
 }
 
 void updateAnalogLeds(CRGB rgb)
@@ -283,48 +293,10 @@ void plot_timer(uint16_t cnt)
   {
     leds[i] += 0x202020;
   }
-  FastLED.show();
-}
-
-void drawAnimation()
-{
-  if (transition)
-  {
-    loop_counter = 0;
-    transition = false;
-  }
-  leds[loop_counter] = CHSV(hue++, 255, 255);
-
-  // Show the leds
-  FastLED.show();
-
-  fadeToBlackBy(leds, NUM_LEDS, 13);
-
-  // Wait a little bit before we loop around and do it again
-  loop_counter = (loop_counter + 1) % 60;
 }
 
 void drawClock()
 {
-  if (transition)
-  {
-    // First slide the led in one direction
-    for (int i = 0; i < NUM_LEDS; i++)
-    {
-      // Set the i'th led to hue
-      hue += 4;
-      leds[i] = CHSV(hue, 255, 255);
-
-      // Show the leds
-      FastLED.show();
-
-      fadeToBlackBy(leds, NUM_LEDS, 10);
-
-      // Wait a little bit before we loop around and do it again
-      delay(25);
-    }
-    transition = false;
-  }
   timeClient.update();
   formattedDate = timeClient.getFormattedTime();
   int splitT = formattedDate.indexOf("T");
@@ -332,37 +304,8 @@ void drawClock()
   set_time(timeStamp.substring(0, 2).toInt(), timeStamp.substring(3, 5).toInt(), timeStamp.substring(6, 8).toInt());
 }
 
-void drawSolidColor()
-{
-  if (transition)
-  {
-    loop_counter = 0;
-    transition = false;
-  }
-  fill_solid(leds, NUM_LEDS, CHSV(gHue, 255, 255));
-  FastLED.show();
-  loop_counter = (loop_counter + 1) % 60;
-}
-
 void drawTimer()
 {
-  if (transition)
-  {
-    loop_counter = 0;
-    timer_runs = false;
-    timer_cnt = 1;
-    for (int i = NUM_LEDS - 1; i >= 0; i--)
-    {
-      hue += 4;
-      leds[i] = CHSV(hue, 255, 255);
-      FastLED.show();
-      fadeToBlackBy(leds, NUM_LEDS, 10);
-      delay(25);
-    }
-    transition = false;
-    FastLED.clear();
-    FastLED.show();
-  }
   loop_counter++;
   if (touch_short_press && (!timer_runs))
   {
@@ -396,94 +339,13 @@ void drawTimer()
             delay(100);
           }
           delay(500);
-          sys_state = 0;
+          mode = 0;
         }
         timer_runs = false;
       }
     }
     // Serial.println(timer_cnt);
   }
-}
-
-void confetti()
-{
-  // random colored speckles that blink in and fade smoothly
-  fadeToBlackBy(leds, NUM_LEDS, 10);
-  int pos = random16(NUM_LEDS);
-  leds[pos] += CHSV(gHue + random8(64), 200, 255);
-}
-
-void rainbow()
-{
-  // FastLED's built-in rainbow generator
-  fill_rainbow(leds, NUM_LEDS, gHue, 7);
-}
-
-void addGlitter(fract8 chanceOfGlitter)
-{
-  if (random8() < chanceOfGlitter)
-  {
-    leds[random16(NUM_LEDS)] += CRGB::White;
-  }
-}
-
-// Pride2015 by Mark Kriegsman: https://gist.github.com/kriegsman/964de772d64c502760e5
-// This function draws rainbows with an ever-changing,
-// widely-varying set of parameters.
-void pride()
-{
-  static uint16_t sPseudotime = 0;
-  static uint16_t sLastMillis = 0;
-  static uint16_t sHue16 = 0;
-
-  // uint8_t sat8 = beatsin88( 87, 220, 250);
-  uint8_t sat8 = beatsin88(43.5, 220, 250);
-  // uint8_t brightdepth = beatsin88( 341, 96, 224);
-  uint8_t brightdepth = beatsin88(171, 96, 224);
-  // uint16_t brightnessthetainc16 = beatsin88( 203, (25 * 256), (40 * 256));
-  uint16_t brightnessthetainc16 = beatsin88(102, (25 * 256), (40 * 256));
-  // uint8_t msmultiplier = beatsin88(147, 23, 60);
-  uint8_t msmultiplier = beatsin88(74, 23, 60);
-
-  uint16_t hue16 = sHue16; // gHue * 256;
-  // uint16_t hueinc16 = beatsin88(113, 1, 3000);
-  uint16_t hueinc16 = beatsin88(57, 1, 128);
-
-  uint16_t ms = millis();
-  uint16_t deltams = ms - sLastMillis;
-  sLastMillis = ms;
-  sPseudotime += deltams * msmultiplier;
-  // sHue16 += deltams * beatsin88( 400, 5, 9);
-  sHue16 += deltams * beatsin88(200, 5, 9);
-  uint16_t brightnesstheta16 = sPseudotime;
-
-  for (uint16_t i = 0; i < NUM_LEDS; i++)
-  {
-    hue16 += hueinc16;
-    uint8_t hue8 = hue16 / 256;
-
-    brightnesstheta16 += brightnessthetainc16;
-    uint16_t b16 = sin16(brightnesstheta16) + 32768;
-
-    uint16_t bri16 = (uint32_t)((uint32_t)b16 * (uint32_t)b16) / 65536;
-    uint8_t bri8 = (uint32_t)(((uint32_t)bri16) * brightdepth) / 65536;
-    bri8 += (255 - brightdepth);
-
-    CRGB newcolor = CHSV(hue8, sat8, bri8);
-
-    uint16_t pixelnumber = i;
-
-    pixelnumber = (NUM_LEDS - 1) - pixelnumber;
-
-    nblend(leds[pixelnumber], newcolor, 64);
-  }
-}
-
-void rainbowWithGlitter()
-{
-  // built-in FastLED rainbow, plus some random sparkly glitter
-  rainbow();
-  addGlitter(80);
 }
 
 void listDir(fs::FS &fs, const char *dirname, uint8_t levels)
@@ -529,12 +391,93 @@ String getData()
 {
   String json = "{";
 
-  json += "\"mode\":" + String(sys_state) + "";
+  json += "\"mode\":" + String(mode) + "";
+  json += ",\"speed\":" + String(speed) + "";
   json += ",\"timeOffset\":" + String(timeOffset) + "";
+
+  json += ",\"cyclePalette\":" + String(cyclePalette) + "";
+  json += ",\"paletteDuration\":" + String(paletteDuration) + "";
+  json += ",\"currentPaletteIndex\":" + String(currentPaletteIndex) + "";
+
+  json += ",\"cyclePattern\":" + String(cyclePattern) + "";
+  json += ",\"patternDuration\":" + String(patternDuration) + "";
+  json += ",\"currentPatternIndex\":" + String(currentPatternIndex) + "";
 
   json += "}";
 
   return json;
+}
+
+void setValue()
+{
+  bool ok = true;
+
+  String name = Server.arg("name");
+  String value = Server.arg("value");
+
+  if (name == "mode")
+  {
+    mode = value.toInt();
+    if (mode < 0)
+      mode = 0;
+    else if (mode >= modeCount)
+      mode = modeCount - 1;
+    touch_long_press = false;
+  }
+  else if (name == "timeOffset")
+  {
+    timeClient.setTimeOffset(value.toInt());
+  }
+  else if (name == "cyclePalette")
+  {
+    cyclePalette = value.toInt();
+  }
+  else if (name == "paletteDuration")
+  {
+    paletteDuration = value.toInt();
+  }
+  else if (name == "currentPaletteIndex")
+  {
+    currentPaletteIndex = value.toInt();
+    if (currentPaletteIndex < 0)
+      currentPaletteIndex = 0;
+    else if (currentPaletteIndex >= paletteCount)
+      currentPaletteIndex = paletteCount - 1;
+    // change palette immediately, so set both, rather than letting them cross-fade
+    targetPalette = palettes[currentPaletteIndex];
+    currentPalette = palettes[currentPaletteIndex];
+    paletteTimeout = millis() + (paletteDuration * 1000);
+  }
+  else if (name == "speed")
+  {
+    speed = value.toInt();
+  }
+  else if (name == "cyclePattern")
+  {
+    cyclePattern = value.toInt();
+  }
+  else if (name == "patternDuration")
+  {
+    patternDuration = value.toInt();
+  }
+  else if (name == "currentPatternIndex")
+  {
+    currentPatternIndex = value.toInt();
+    if (currentPatternIndex < 0)
+      currentPatternIndex = 0;
+    else if (currentPatternIndex >= patternCount)
+      currentPatternIndex = patternCount - 1;
+    patternTimeout = millis() + (patternDuration * 1000);
+  }
+  else
+  {
+    ok = false;
+  }
+
+  if (ok)
+    Server.send(200);
+  else
+    Server.send(404, "text/plain", "Unknown field");
 }
 
 void setupWeb()
@@ -543,27 +486,7 @@ void setupWeb()
   Server.on("/data", HTTP_GET, []()
             { Server.send(200, "text/json", getData()); });
   Server.on("/set", HTTP_POST, []()
-            {
-    String name = Server.arg("name");
-    String value = Server.arg("value");
-    
-    if (name == "mode")
-    {
-      sys_state = value.toInt();
-      sys_state = max(sys_state, (uint8_t)0);
-      sys_state = min(sys_state, (uint8_t)3);
-      transition = true;
-      touch_long_press = false;
-      Server.send(200);
-    } else if (name == "timeOffset")
-    {
-      timeClient.setTimeOffset(value.toInt());
-      Server.send(200);
-    }
-    else
-    {
-      Server.send(404, "text/plain", "Unknown field");
-    } });
+            { setValue(); });
 
   Server.serveStatic("/", SPIFFS, "/index.htm");
   Server.serveStatic("/app.js", SPIFFS, "/app.js");
