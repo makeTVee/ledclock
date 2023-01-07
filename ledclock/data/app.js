@@ -195,7 +195,8 @@ function updateControls() {
     : "btn btn-outline-secondary";
 }
 
-async function onCyclePatternChange(cyclePattern) {
+async function onCyclePatternChange(value) {
+  cyclePattern = value;
   postValue("Cycle Pattern", "cyclePattern", cyclePattern ? 1 : 0);
   updateControls();
 }
@@ -210,7 +211,8 @@ async function onPatternChange(ev) {
   updateControls();
 }
 
-async function onCyclePaletteChange(cyclePalette) {
+async function onCyclePaletteChange(value) {
+  cyclePalette = value;
   postValue("Cycle Palette", "cyclePalette", cyclePalette ? 1 : 0);
   updateControls(cyclePalette);
 }
