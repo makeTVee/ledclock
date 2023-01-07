@@ -73,47 +73,179 @@
         </div>
 
         <form id="form" style="display: none">
+          <!-- Mode -->
           <div class="row mb-3">
-            <label class="col-sm-3 col-form-label text-sm-end">Ring Mode</label>
+            <label class="col-sm-3 col-form-label text-sm-end">Mode</label>
             <div class="col-sm-4">
-              <select
-                id="modeSelect"
-                class="form-select"
-                aria-label="Default select example"
-              >
+              <select id="modeSelect" class="form-select">
                 <option value="0">Off</option>
                 <option value="1">Clock</option>
                 <option value="2">Timer</option>
-                <option value="3">Animation</option>
-                <option value="4">Rainbow</option>
-                <option value="5">Pride</option>
+                <option value="3">Pattern</option>
               </select>
             </div>
           </div>
 
-          <div class="row mb-3">
-            <label class="col-sm-3 col-form-label text-sm-end"
-              >Time Offset</label
-            >
-            <div class="col-sm-4">
-              <input
-                id="timeOffsetInput"
-                class="form-control input"
-                type="number"
-                step="0.25"
-                min="-12"
-                max="14"
-              />
+          <!-- Pattern Section -->
+          <fieldset id="patternSection">
+            <hr />
+
+            <!-- Pattern -->
+            <div class="row mb-3">
+              <label class="col-sm-3 col-form-label text-sm-end">Pattern</label>
+              <div class="col-sm-4">
+                <select id="patternSelect" class="form-select"></select>
+              </div>
             </div>
-            <div class="col-sm-5">
-              <input
-                type="text"
-                readonly
-                class="form-control-plaintext"
-                value="Hours"
-              />
+
+            <!-- Cycle Pattern -->
+            <div class="row mb-3">
+              <label class="col-sm-3 col-form-label text-sm-end"
+                >Cycle Pattern</label
+              >
+              <div class="col-sm-9">
+                <div class="btn-group" role="group">
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    id="cyclePatternOnButton"
+                  >
+                    On
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    id="cyclePatternOffButton"
+                  >
+                    Off
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+
+            <!-- Pattern Duration -->
+            <div class="row mb-3">
+              <label class="col-sm-3 col-form-label text-sm-end"
+                >Pattern Duration</label
+              >
+              <div class="col-sm-4">
+                <input
+                  id="patternDurationInput"
+                  class="form-control input"
+                  type="number"
+                  step="1"
+                  min="1"
+                  max="255"
+                />
+              </div>
+              <div class="col-sm-5 form-text">Seconds</div>
+            </div>
+          </fieldset>
+
+          <!-- Speed Section -->
+          <fieldset id="speedSection">
+            <hr />
+            <div class="row mb-3">
+              <label class="col-sm-3 col-form-label text-sm-end">Speed</label>
+              <div class="col-sm-4">
+                <input
+                  id="speedInputRange"
+                  type="range"
+                  class="form-range"
+                  step="1"
+                  min="0"
+                  max="255"
+                />
+              </div>
+              <div class="col-sm-2">
+                <input
+                  id="speedInput"
+                  class="form-control input"
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="255"
+                />
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Palette Section -->
+          <fieldset id="paletteSection">
+            <hr />
+            <!-- Palette -->
+            <div class="row mb-3">
+              <label class="col-sm-3 col-form-label text-sm-end">Palette</label>
+              <div class="col-sm-4">
+                <select id="paletteSelect" class="form-select"></select>
+              </div>
+            </div>
+
+            <!-- Cycle Palette -->
+            <div class="row mb-3">
+              <label class="col-sm-3 col-form-label text-sm-end"
+                >Cycle Palette</label
+              >
+              <div class="col-sm-9">
+                <div class="btn-group" role="group">
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    id="cyclePaletteOnButton"
+                  >
+                    On
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    id="cyclePaletteOffButton"
+                  >
+                    Off
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Palette Duration -->
+            <div class="row mb-3">
+              <label class="col-sm-3 col-form-label text-sm-end"
+                >Palette Duration</label
+              >
+              <div class="col-sm-4">
+                <input
+                  id="paletteDurationInput"
+                  class="form-control input"
+                  type="number"
+                  step="1"
+                  min="1"
+                  max="255"
+                />
+              </div>
+              <div class="col-sm-5 col-sm-5 form-text">Seconds</div>
+            </div>
+          </fieldset>
+
+          <!-- Clock Section -->
+          <fieldset id="clockSection">
+            <hr />
+            <!-- Time Offset -->
+            <div class="row mb-3">
+              <label class="col-sm-3 col-form-label text-sm-end"
+                >Clock Offset</label
+              >
+              <div class="col-sm-4">
+                <input
+                  id="timeOffsetInput"
+                  class="form-control input"
+                  type="number"
+                  step="0.25"
+                  min="-12"
+                  max="14"
+                />
+              </div>
+              <div class="col-sm-5 col-sm-5 form-text">Hours</div>
+            </div>
+          </fieldset>
         </form>
       </div>
     </main>
