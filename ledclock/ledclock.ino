@@ -5,7 +5,7 @@
 #include <WebServer.h>
 #include <AutoConnect.h>
 
-#define OTA
+//#define OTA
 
 #ifdef OTA
 #include <ArduinoOTA.h>
@@ -24,56 +24,40 @@
 WebServer Server;
 AutoConnect Portal(Server);
 
-#define NP_PIN 12    // LED ring
-#define RED_PIN 26   // Red LED for PWM
-#define GREEN_PIN 27 // Green LED for PWM
-#define BLUE_PIN 25  // Blue LED for PWM
-#define TOUCH_PIN 4  // Touch button
-#define BUZZ_PIN 33  // Buzzer (just on off, no freq needed)
+#define NP_PIN D10    // LED ring
 
 #define LED_TYPE WS2812B
 #define COLOR_ORDER GRB
-#define NUM_LEDS 60
+#define NUM_LEDS 72
 CRGB leds[NUM_LEDS];
 
-#define BRIGHTNESS 45
+#define BRIGHTNESS 125
 #define FRAMES_PER_SECOND 120
 #define MILLI_AMPS 1500
 
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
 
+long loop_counter = 0;
+
 bool off = false;
 uint8_t gHue = 0;          // rotating "base color" used by many of the patterns
 uint8_t touch_counter = 0; // counter for touch button (long/short press detection)
-uint8_t mode = 1;          // variable for different modes (off, clock, timer, pattern)
-uint8_t modeCount = 4;
-
-bool touch_long_press = false;
-bool touch_short_press = false;
-bool timer_runs = false; // timer mode status
-long loop_counter = 0;
-uint16_t timer_cnt = 1;
 
 WiFiUDP ntpUDP;
-
+uint8_t mode = 0;  
+uint8_t modeCount = 4;
 // offset time in seconds to adjust for your timezone, for example:
 // GMT +1 = 3600
 // GMT +8 = 28800
 // GMT -1 = -3600
 // GMT 0 = 0
 // GMT -6 = -21600
-int timeOffset = -21600;
+int timeOffset = 3600;
 
 NTPClient timeClient(ntpUDP, "pool.ntp.org", timeOffset, 60000);
 String formattedDate;
 String dayStamp;
 String timeStamp;
-
-const uint8_t touch_threshold = 72; // threshold for touch detection
-bool touched = false;               // Touch 0 GPIO4
-void IRAM_ATTR T0Activated() { touched = true; }
-#define TOUCH_LONG_TIME 50
-#define TOUCH_SHORT_TIME 15
 
 uint8_t cyclePalette = 0;
 uint8_t paletteDuration = 10;
@@ -133,27 +117,9 @@ void setup()
 
   ArduinoOTA.begin();
 #endif
-
-  pinMode(RED_PIN, OUTPUT);
-  pinMode(GREEN_PIN, OUTPUT);
-  pinMode(BLUE_PIN, OUTPUT);
-  pinMode(BUZZ_PIN, OUTPUT);
-
   // setting PWM properties
   const int freq = 5000;
   const int resolution = 8;
-
-  ledcSetup(0, freq, resolution);
-  ledcSetup(1, freq, resolution);
-  ledcSetup(2, freq, resolution);
-  ledcAttachPin(RED_PIN, 0);
-  ledcAttachPin(GREEN_PIN, 1);
-  ledcAttachPin(BLUE_PIN, 2);
-
-  // turn off the analog LEDs
-  updateAnalogLeds(CRGB::Black);
-
-  touchAttachInterrupt(TOUCH_PIN, T0Activated, touch_threshold);
 
   FastLED.addLeds<LED_TYPE, NP_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalSMD5050);
   FastLED.setBrightness(BRIGHTNESS);
@@ -175,17 +141,8 @@ void loop()
 
   switch (mode)
   {
-  case 0: // off
-    FastLED.clear();
-    analogColor = CRGB::Black;
-    break;
-
-  case 1: // clock
+  case 0: // clock
     drawClock();
-    break;
-
-  case 2: // timer
-    drawTimer();
     break;
 
   case 3: // pattern
@@ -196,45 +153,12 @@ void loop()
   default:
     break;
   }
-
-  if (touch_long_press) // next state
-  {
-    mode++;
-    if (mode >= modeCount)
-      mode = 0;
-    touch_long_press = false;
-  }
-
-  if (touched)
-  {
-    touched = 0;
-    touch_counter++;
-    if (touch_counter == TOUCH_SHORT_TIME)
-    {
-      touch_short_press = true;
-    }
-    if (touch_counter == TOUCH_LONG_TIME)
-    {
-      touch_long_press = true;
-      digitalWrite(BUZZ_PIN, HIGH);
-      delay(200);
-      digitalWrite(BUZZ_PIN, LOW);
-    }
-  }
-  else
-  {
-    touch_counter = 0;
-  }
-
-  // Serial.println(touch_counter);
-
+  
   // update the LED ring
   FastLED.delay(50);
 
-  updateAnalogLeds(analogColor);
-
   // do some periodic updates
-  EVERY_N_MILLISECONDS(30)
+  EVERY_N_MILLISECONDS(1000)
   {
     gHue++; // slowly cycle the "base color" through the rainbow
   }
@@ -265,34 +189,33 @@ void loop()
 void set_time(uint8_t hour, uint8_t minute, uint8_t second)
 {
   FastLED.clear();
-  leds[(hour % 12) * 5 + (minute / 12)] = CRGB::Blue;
-  leds[(((hour % 12) * 5 + (minute / 12)) + 1) % 60] = 0x00000030;
-  leds[(((hour % 12) * 5 + (minute / 12)) - 1) % 60] = 0x00000030;
-  leds[minute] += CRGB::Red;
-  leds[(minute - 1) % 60] += 0x00300000;
-  leds[second] += CRGB::Green;
-}
-
-void updateAnalogLeds(CRGB rgb)
-{
-  ledcWrite(0, 255 - rgb.r);
-  ledcWrite(1, 255 - rgb.g);
-  ledcWrite(2, 255 - rgb.b);
-}
-
-void plot_timer(uint16_t cnt)
-{
-  uint8_t minute = cnt / 60;
-  uint8_t second = cnt % 60;
-  FastLED.clear();
-  for (int i = 0; i < minute; i++)
+  //hours
+  gHue=0;
+  uint8_t min = minute;
+  uint8_t hor=hour%12;
+  if (hor ==0) hor =12;
+  for (int h=0;h<hor;h++)
   {
-    leds[i] = 0xCCCCCC;
+      leds[h*6]=CRGB::YellowGreen;
   }
-  for (int i = 0; i < second; i++)
+
+  for (int h=0;h<12;h++)
   {
-    leds[i] += 0x202020;
+   for (int m = 0; m<5;m++)
+      {
+        if (min > 0)
+        {
+          leds[h*6+1+m]=CHSV( gHue, 200, 120);
+          gHue+=5;
+           min--;
+        }
+      
+      }
   }
+  //leds[(hour%12)*6+1+(minute%5)]=CHSV(gHue, 200, second*2);
+  //leds[(hour % 12) * 5 + (minute / 12)] = CRGB::Blue;
+  //leds[minute] += CRGB::Red;
+  //leds[second] += CRGB::Green;
 }
 
 void drawClock()
@@ -304,49 +227,6 @@ void drawClock()
   set_time(timeStamp.substring(0, 2).toInt(), timeStamp.substring(3, 5).toInt(), timeStamp.substring(6, 8).toInt());
 }
 
-void drawTimer()
-{
-  loop_counter++;
-  if (touch_short_press && (!timer_runs))
-  {
-    timer_cnt = (timer_cnt + 1) % 60;
-    plot_timer((timer_cnt - 1) * 60);
-    touch_short_press = false;
-    loop_counter = 0;
-  }
-  if (loop_counter >= 100)
-  {
-    timer_runs = true;
-    timer_cnt = (timer_cnt - 1) * 60;
-    loop_counter = 0;
-  }
-  if (timer_runs)
-  {
-    plot_timer(timer_cnt);
-    if (loop_counter == 20)
-    {
-      timer_cnt--;
-      loop_counter = 0;
-      if (timer_cnt == 0)
-      {
-        for (int r = 0; r < 5; r++)
-        {
-          for (int b = 0; b < 4; b++)
-          {
-            digitalWrite(BUZZ_PIN, HIGH);
-            delay(100);
-            digitalWrite(BUZZ_PIN, LOW);
-            delay(100);
-          }
-          delay(500);
-          mode = 0;
-        }
-        timer_runs = false;
-      }
-    }
-    // Serial.println(timer_cnt);
-  }
-}
 
 void listDir(fs::FS &fs, const char *dirname, uint8_t levels)
 {
@@ -390,7 +270,7 @@ void listDir(fs::FS &fs, const char *dirname, uint8_t levels)
 String getData()
 {
   String json = "{";
-
+ 
   json += "\"mode\":" + String(mode) + "";
   json += ",\"speed\":" + String(speed) + "";
   json += ",\"timeOffset\":" + String(timeOffset) + "";
@@ -414,15 +294,14 @@ void setValue()
 
   String name = Server.arg("name");
   String value = Server.arg("value");
-
-  if (name == "mode")
+  
+    if (name == "mode")
   {
     mode = value.toInt();
     if (mode < 0)
       mode = 0;
     else if (mode >= modeCount)
       mode = modeCount - 1;
-    touch_long_press = false;
   }
   else if (name == "timeOffset")
   {

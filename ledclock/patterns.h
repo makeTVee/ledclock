@@ -7,7 +7,7 @@ void spin()
   fadeToBlackBy(leds, NUM_LEDS, 13);
 
   // Wait a little bit before we loop around and do it again
-  loop_counter = (loop_counter + 1) % 60;
+  loop_counter = (loop_counter + 1) % 72;
 }
 
 void solidPalette()
@@ -15,7 +15,7 @@ void solidPalette()
   CRGB color = ColorFromPalette(currentPalette, gHue);
   fill_solid(leds, NUM_LEDS, color);
   analogColor = color;
-  loop_counter = (loop_counter + 1) % 60;
+  loop_counter = (loop_counter + 1) % 72;
 }
 
 void confetti()
@@ -59,7 +59,7 @@ void pride()
   // uint16_t brightnessthetainc16 = beatsin88( 203, (25 * 256), (40 * 256));
   uint16_t brightnessthetainc16 = beatsin88(102, (25 * 256), (40 * 256));
   // uint8_t msmultiplier = beatsin88(147, 23, 60);
-  uint8_t msmultiplier = beatsin88(74, 23, 60);
+  uint8_t msmultiplier = beatsin88(74, 23, 72);
 
   uint16_t hue16 = sHue16; // gHue * 256;
   // uint16_t hueinc16 = beatsin88(113, 1, 3000);
@@ -110,7 +110,7 @@ void colorWaves()
   // uint8_t sat8 = beatsin88( 87, 220, 250);
   uint8_t brightdepth = beatsin88(341, 96, 224);
   uint16_t brightnessthetainc16 = beatsin88(203, (25 * 256), (40 * 256));
-  uint8_t msmultiplier = beatsin88(147, 23, 60);
+  uint8_t msmultiplier = beatsin88(147, 23, 72);
 
   uint16_t hue16 = sHue16; // gHue * 256;
   uint16_t hueinc16 = beatsin88(113, 300, 1500);
