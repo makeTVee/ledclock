@@ -45,7 +45,7 @@ uint8_t touch_counter = 0; // counter for touch button (long/short press detecti
 
 WiFiUDP ntpUDP;
 uint8_t mode = 0;  
-uint8_t modeCount = 4;
+uint8_t modeCount = 2;
 // offset time in seconds to adjust for your timezone, for example:
 // GMT +1 = 3600
 // GMT +8 = 28800
@@ -145,7 +145,7 @@ void loop()
     drawClock();
     break;
 
-  case 3: // pattern
+  case 1: // pattern
     // call the current pattern function
     patterns[currentPatternIndex]();
     break;
@@ -158,7 +158,7 @@ void loop()
   FastLED.delay(50);
 
   // do some periodic updates
-  EVERY_N_MILLISECONDS(1000)
+  EVERY_N_MILLISECONDS(30)
   {
     gHue++; // slowly cycle the "base color" through the rainbow
   }
