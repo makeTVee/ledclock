@@ -36,6 +36,7 @@ let speedInputRange;
 
 let clockSection;
 let timeOffsetInput;
+let brightnessInputRange;
 
 let statusDiv;
 let statusFooter;
@@ -51,6 +52,7 @@ let cyclePattern;
 let patternDuration;
 let speed;
 let timeOffset;
+let brightness;
 
 async function onLoaded() {
   statusDiv = document.getElementById("statusDiv");
@@ -103,6 +105,8 @@ async function onLoaded() {
   clockSection = document.getElementById("clockSection");
   timeOffsetInput = document.getElementById("timeOffsetInput");
   timeOffsetInput.onchange = onTimeOffsetChange;
+  brightnessInputRange =document.getElementById("brightnessInputRange");
+  brightnessInputRange.onchange = onBrightnessInputRang;
 
   loadPaletteOptions();
   loadPatternOptions();
@@ -141,6 +145,7 @@ async function onLoaded() {
   speedInputRange.value = speed;
 
   timeOffsetInput.value = timeOffset / 60 / 60;
+  brightnessInputRange.value = brightness;
 
   modeSelect.value = mode;
 
@@ -233,6 +238,10 @@ async function onSpeedChange(ev) {
 
 async function onTimeOffsetChange(ev) {
   postValue("Time Offset", "timeOffset", ev.target.value * 60 * 60);
+}
+
+async function onBrightnessInputRang(ev) {
+  postValue("Brightness", "brightness", ev.target.value);
 }
 
 async function postValue(display, name, value) {

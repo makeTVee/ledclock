@@ -35,6 +35,11 @@ CRGB leds[NUM_LEDS];
 #define FRAMES_PER_SECOND 120
 #define MILLI_AMPS 1500
 
+byte coordsX[NUM_LEDS] = { 184, 191, 198, 186, 171, 175, 226, 238, 236, 220, 212, 223, 241, 255, 245, 229, 229, 245, 226, 238, 223, 212, 220, 236, 184, 191, 175, 171, 186, 198, 127, 127, 114, 119, 136, 141, 71, 64, 57, 69, 84, 80, 29, 17, 19, 35, 43, 32, 14, 0, 10, 26, 26, 10, 29, 17, 32, 43, 35, 19, 71, 64, 80, 84, 69, 57, 128, 128, 141, 136, 119, 114 };
+byte coordsY[NUM_LEDS] = { 172, 181, 169, 161, 167, 180, 140, 145, 133, 130, 141, 151, 97, 97, 87, 91, 103, 107, 54, 48, 43, 53, 64, 61, 22, 13, 14, 27, 33, 24, 11, 0, 7, 19, 19, 7, 22, 13, 24, 33, 27, 14, 54, 48, 61, 64, 53, 43, 97, 97, 107, 103, 91, 87, 140, 145, 151, 141, 130, 133, 172, 181, 180, 167, 161, 169, 183, 194, 186, 174, 174, 186 };
+byte angles[NUM_LEDS] = { 80, 81, 81, 79, 78, 79, 82, 84, 83, 81, 81, 83, 81, 83, 81, 80, 81, 82, 78, 79, 77, 77, 78, 79, 74, 74, 73, 73, 74, 75, 69, 69, 68, 68, 70, 70, 64, 63, 63, 64, 65, 65, 60, 59, 59, 61, 62, 61, 58, 57, 57, 59, 59, 58, 59, 57, 59, 61, 60, 58, 64, 63, 66, 66, 64, 62, 73, 73, 75, 74, 71, 71 };
+byte radii[NUM_LEDS] = { 152, 147, 156, 159, 152, 145, 179, 179, 186, 184, 176, 172, 208, 211, 215, 210, 202, 203, 232, 237, 238, 230, 225, 229, 246, 253, 250, 241, 239, 246, 248, 255, 249, 242, 243, 251, 239, 245, 237, 231, 236, 244, 218, 223, 214, 212, 219, 225, 191, 192, 185, 186, 194, 198, 162, 159, 155, 160, 168, 167, 140, 134, 135, 143, 147, 141, 136, 129, 135, 142, 140, 132 };
+
 #define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
 
 long loop_counter = 0;
@@ -53,6 +58,7 @@ uint8_t modeCount = 2;
 // GMT 0 = 0
 // GMT -6 = -21600
 int timeOffset = 3600;
+uint8_t brightness = BRIGHTNESS; 
 
 NTPClient timeClient(ntpUDP, "pool.ntp.org", timeOffset, 60000);
 String formattedDate;
@@ -122,7 +128,8 @@ void setup()
   const int resolution = 8;
 
   FastLED.addLeds<LED_TYPE, NP_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalSMD5050);
-  FastLED.setBrightness(BRIGHTNESS);
+  FastLED.setMaxPowerInVoltsAndMilliamps(5, MILLI_AMPS);
+  FastLED.setBrightness(brightness);
 
   Serial.println("Booting");
 
@@ -274,6 +281,7 @@ String getData()
   json += "\"mode\":" + String(mode) + "";
   json += ",\"speed\":" + String(speed) + "";
   json += ",\"timeOffset\":" + String(timeOffset) + "";
+  json += ",\"brightness\":" + String(brightness) + "";
 
   json += ",\"cyclePalette\":" + String(cyclePalette) + "";
   json += ",\"paletteDuration\":" + String(paletteDuration) + "";
@@ -306,6 +314,11 @@ void setValue()
   else if (name == "timeOffset")
   {
     timeClient.setTimeOffset(value.toInt());
+  }
+  else if (name == "brightness")
+  {
+    brightness = value.toInt();
+    FastLED.setBrightness(brightness);
   }
   else if (name == "cyclePalette")
   {
