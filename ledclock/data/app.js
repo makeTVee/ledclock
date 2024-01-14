@@ -326,6 +326,7 @@ function loadPaletteOptions() {
 const patterns = [
   { name: "Spin", palettes: true },
   { name: "Solid Palette", palettes: true },
+  { name: "Clockwise Palette", palettes: true },
   { name: "Pride" },
   { name: "Color Waves", palettes: true },
   { name: "Rainbow" },

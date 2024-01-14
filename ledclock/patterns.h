@@ -18,6 +18,14 @@ void solidPalette()
   loop_counter = (loop_counter + 1) % 72;
 }
 
+void clockwisePalette()
+{
+  for (uint16_t i = 0; i < NUM_LEDS; i++)
+  {
+    leds[i] = ColorFromPalette(currentPalette,  offset + angles[i]);
+  }
+}
+
 void confetti()
 {
   // random colored speckles that blink in and fade smoothly
@@ -210,6 +218,7 @@ typedef Pattern PatternList[];
 PatternList patterns = {
     spin,
     solidPalette,
+    clockwisePalette,
     pride,
     colorWaves,
     rainbow,
