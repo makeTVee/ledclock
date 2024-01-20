@@ -1,3 +1,3 @@
-# Large WS2812B LED Clock
+# Flower LED Clock
 
-Code for Large WS2812B LED Clock
+Code for 2023 gift exchange flower clock
